@@ -40,6 +40,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+      image_uri: ${{ steps.set_image_uri.outputs.image_uri }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,6 +68,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker Image
+        id: build_image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ secrets.AWS_ECR_REPO_BACKEND }}
@@ -77,16 +80,14 @@ jobs:
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
-      - name: Save image_uri to file
+      - name: Set image_uri output
+        id: set_image_uri
         run: |
           IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_REPO_BACKEND }}:${{ github.sha }}"
-          echo "${IMAGE_URI}" > image_uri.txt
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
-      - name: Upload image_uri artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: image_uri
-          path: image_uri.txt
+      - name: Print Build Image URI
+        run: echo "Build image_uri=${{ steps.set_image_uri.outputs.image_uri }}"
 
   Deploy:
     needs: Build
@@ -99,33 +100,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download image_uri artifact
-        uses: actions/download-artifact@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: image_uri
-          path: .
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: arn:aws:iam::278239571658:role/github-to-aws-oidc
 
-      - name: Read image_uri
-        id: read_image_uri
-        run: |
-          IMAGE_URI=$(cat image_uri.txt)
-          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Debug image_uri
+      - name: Debug Build Outputs
         run: |
-          echo "Build image_uri=${{ env.IMAGE_URI }}"
-          echo "All Build outputs: $(cat image_uri.txt)"
+          echo "Build image_uri=${{ needs.Build.outputs.image_uri }}"
+          echo "All Build outputs: ${{ toJson(needs.Build.outputs) }}"
 
       - name: Show Final Kubernetes Manifests
         run: |
           cd k8s
-          kustomize edit set image backend=${{ env.IMAGE_URI }}
+          kustomize edit set image backend=${{ needs.Build.outputs.image_uri }}
           kustomize build > final-manifests.yaml
           cat final-manifests.yaml
 
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ env.IMAGE_URI }}
+          IMAGE_URI: ${{ needs.Build.outputs.image_uri }}
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
