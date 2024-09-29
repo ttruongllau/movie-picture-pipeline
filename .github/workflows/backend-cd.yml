@@ -40,8 +40,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    outputs:
-      image_uri: ${{ steps.set_image_uri.outputs.image_uri }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,19 +110,18 @@ jobs:
 
       - name: Debug Build Outputs
         run: |
-          echo "Build image_uri=${{ needs.Build.outputs.image_uri }}"
-          echo "All Build outputs: ${{ toJson(needs.Build.outputs) }}"
+          echo "Build image_uri=${{ steps.set_image_uri.outputs.image_uri }}"
 
       - name: Show Final Kubernetes Manifests
         run: |
           cd k8s
-          kustomize edit set image backend=${{ needs.Build.outputs.image_uri }}
+          kustomize edit set image backend=${{ steps.set_image_uri.outputs.image_uri }}
           kustomize build > final-manifests.yaml
           cat final-manifests.yaml
 
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ needs.Build.outputs.image_uri }}
+          IMAGE_URI: ${{ steps.set_image_uri.outputs.image_uri }}
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
