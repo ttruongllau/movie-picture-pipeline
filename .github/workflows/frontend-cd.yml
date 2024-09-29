@@ -35,8 +35,6 @@ jobs:
     environment: deployment
     permissions:
       id-token: write
-    outputs:
-      image-uri: ${{ steps.build.outputs.image-uri }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,11 +77,13 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ needs.Build.outputs.image-uri }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ secrets.AWS_ECR_REPO_FRONTEND }}
+          IMAGE_TAG: ${{ github.sha }}
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
           cd k8s
           aws eks update-kubeconfig --name $CLUSTER --region $REGION
-          kustomize edit set image frontend=$IMAGE_URI
+          kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
           kustomize build | kubectl apply -f -
