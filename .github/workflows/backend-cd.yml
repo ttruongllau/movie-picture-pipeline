@@ -39,9 +39,9 @@ jobs:
     environment: deployment
     permissions:
       id-token: write
-      contents: read  # Added to ensure repository contents are accessible if needed
+      contents: read
     outputs:
-      image_uri: ${{ steps.build.outputs.image_uri }}  # Changed from 'image-uri' to 'image_uri' for consistency
+      image_uri: ${{ steps.build.outputs.image_uri }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,10 +76,10 @@ jobs:
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          echo "image_uri=$REGISTRY/$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"  # Changed from 'image-uri' to 'image_uri'
+          echo "image_uri=$REGISTRY/$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Print Build Image URI
-        run: echo "Build image_uri=${{ steps.build.outputs.image_uri }}"  # Changed from 'image-uri' to 'image_uri'
+      - name: Debug Image URI
+        run: echo "Set image_uri to: ${{ steps.build.outputs.image_uri }}"
 
   Deploy:
     needs: Build
@@ -87,7 +87,7 @@ jobs:
     environment: deployment
     permissions:
       id-token: write
-      contents: read  # Added to ensure repository contents are accessible if needed
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,9 +107,16 @@ jobs:
           echo "Build image_uri=${{ needs.Build.outputs.image_uri }}"
           echo "All Build outputs: ${{ toJson(needs.Build.outputs) }}"
 
+      - name: Show Final Kubernetes Manifests
+        run: |
+          cd k8s
+          kustomize edit set image backend=${{ needs.Build.outputs.image_uri }}
+          kustomize build > final-manifests.yaml
+          cat final-manifests.yaml
+
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ needs.Build.outputs.image_uri }}  # Changed from 'image-uri' to 'image_uri'
+          IMAGE_URI: ${{ needs.Build.outputs.image_uri }}
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
