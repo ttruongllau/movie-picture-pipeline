@@ -110,18 +110,18 @@ jobs:
 
       - name: Debug Build Outputs
         run: |
-          echo "Build image_uri=${{ steps.set_image_uri.outputs.image_uri }}"
+          echo "Build image_uri=${IMAGE_URI}"
 
       - name: Show Final Kubernetes Manifests
         run: |
           cd k8s
-          kustomize edit set image backend=${{ steps.set_image_uri.outputs.image_uri }}
+          kustomize edit set image backend=$IMAGE_URI
           kustomize build > final-manifests.yaml
           cat final-manifests.yaml
 
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ steps.set_image_uri.outputs.image_uri }}
+          IMAGE_URI: $IMAGE_URI
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
