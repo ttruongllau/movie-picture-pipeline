@@ -18,15 +18,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pipenv
           pipenv install
+
       - name: Run the tests
         run: pipenv run test
 
@@ -36,8 +39,9 @@ jobs:
     environment: deployment
     permissions:
       id-token: write
+      contents: read  # Added to ensure repository contents are accessible if needed
     outputs:
-      image-uri: ${{ steps.build.outputs.image-uri }}
+      image_uri: ${{ steps.build.outputs.image_uri }}  # Changed from 'image-uri' to 'image_uri' for consistency
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +67,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push docker image to Amazon ECR
+      - name: Build, tag, and push Docker image to Amazon ECR
         id: build
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -72,7 +76,10 @@ jobs:
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          echo "image-uri=$REGISTRY/$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_uri=$REGISTRY/$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"  # Changed from 'image-uri' to 'image_uri'
+
+      - name: Print Build Image URI
+        run: echo "Build image_uri=${{ steps.build.outputs.image_uri }}"  # Changed from 'image-uri' to 'image_uri'
 
   Deploy:
     needs: Build
@@ -80,22 +87,29 @@ jobs:
     environment: deployment
     permissions:
       id-token: write
+      contents: read  # Added to ensure repository contents are accessible if needed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           role-to-assume: arn:aws:iam::278239571658:role/github-to-aws-oidc
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Print IMAGE_URI
-        run: echo "IMAGE_URI=${{ needs.Build.outputs.image-uri }}"
+
+      - name: Debug Build Outputs
+        run: |
+          echo "Build image_uri=${{ needs.Build.outputs.image_uri }}"
+          echo "All Build outputs: ${{ toJson(needs.Build.outputs) }}"
+
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: ${{ needs.Build.outputs.image-uri }}
+          IMAGE_URI: ${{ needs.Build.outputs.image_uri }}  # Changed from 'image-uri' to 'image_uri'
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
         run: |
