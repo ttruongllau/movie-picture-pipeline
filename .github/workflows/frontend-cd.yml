@@ -113,5 +113,5 @@ jobs:
         run: |
           cd k8s
           aws eks update-kubeconfig --name $CLUSTER --region $REGION
-          kustomize set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
+          kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
           kustomize build . | kubectl apply -f -
