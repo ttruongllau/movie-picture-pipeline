@@ -93,10 +93,6 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - name: Print IMAGE_URI
         run: echo "IMAGE_URI=${{ needs.Build.outputs.image-uri }}"
-      - name: Debug Kustomize Output
-        run: |
-          kustomize build > output.yaml
-          cat output.yaml
       - name: Deploy Kubernetes manifests
         env:
           IMAGE_URI: ${{ needs.Build.outputs.image-uri }}
