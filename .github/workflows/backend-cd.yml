@@ -75,17 +75,9 @@ jobs:
           echo "REGISTRY=${REGISTRY}"
           echo "REPOSITORY=${REPOSITORY}"
           echo "IMAGE_TAG=${IMAGE_TAG}"
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-
-      - name: Set image_uri output
-        id: set_image_uri
-        run: |
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_REPO_BACKEND }}:${{ github.sha }}"
-          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
-
-      - name: Print Build Image URI
-        run: echo "Build image_uri=${{ steps.set_image_uri.outputs.image_uri }}"
+          echo "IMAGE_URI=${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          docker build -t ${REGISTRY}/${REPOSITORY}:${IMAGE_TAG} .
+          docker push ${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}
 
   Deploy:
     needs: Build
@@ -108,24 +100,15 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Debug Build Outputs
-        run: |
-          echo "Build image_uri=${IMAGE_URI}"
-
-      - name: Show Final Kubernetes Manifests
-        run: |
-          cd k8s
-          kustomize edit set image backend=$IMAGE_URI
-          kustomize build > final-manifests.yaml
-          cat final-manifests.yaml
-
       - name: Deploy Kubernetes manifests
         env:
-          IMAGE_URI: $IMAGE_URI
           CLUSTER: ${{ secrets.AWS_CLUSTER }}
           REGION: ${{ secrets.AWS_REGION }}
+          REPOSITORY: ${{ secrets.AWS_ECR_REPO_BACKEND }}
+          IMAGE_TAG: ${{ github.sha }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           cd k8s
           aws eks update-kubeconfig --name $CLUSTER --region $REGION
-          kustomize edit set image backend=$IMAGE_URI
+          kustomize edit set image backend=${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}
           kustomize build | kubectl apply -f -
